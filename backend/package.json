@@ -10,7 +10,6 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "",
   "dependencies": {
     "@clerk/express": "^1.7.41",
     "@stream-io/node-sdk": "^0.7.12",
@@ -23,5 +22,6 @@
   },
   "devDependencies": {
     "nodemon": "^3.1.10"
-  }
+  },
+  "description": ""
 }
