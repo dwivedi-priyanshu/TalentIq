@@ -1,43 +1,42 @@
-// Piston API is a service for code execution
+// Judge0 CE API is a service for code execution
 
-const PISTON_API = "https://emkc.org/api/v2/piston";
+const JUDGE0_API = "https://ce.judge0.com";
 
-const LANGUAGE_VERSIONS = {
-  javascript: { language: "javascript", version: "18.15.0" },
-  python: { language: "python", version: "3.10.0" },
-  java: { language: "java", version: "15.0.2" },
+const JUDGE0_LANGUAGE_IDS = {
+  javascript: 97, // Node.js 20.17.0
+  python: 100,    // Python 3.12.5
+  java: 91,       // Java JDK 17.0.6
 };
 
 /**
  * @param {string} language - programming language
- * @param {string} code - source code to executed
+ * @param {string} code - source code to execute
  * @returns {Promise<{success:boolean, output?:string, error?: string}>}
  */
 export async function executeCode(language, code) {
   try {
-    const languageConfig = LANGUAGE_VERSIONS[language];
+    const languageId = JUDGE0_LANGUAGE_IDS[language];
 
-    if (!languageConfig) {
+    if (!languageId) {
       return {
         success: false,
         error: `Unsupported language: ${language}`,
       };
     }
 
-    const response = await fetch(`${PISTON_API}/execute`, {
+    // Java files must have class name 'Main' to compile/run correctly on Judge0 CE
+    if (language === "java") {
+      code = code.replace(/\bclass\s+Solution\b/g, "class Main");
+    }
+
+    const response = await fetch(`${JUDGE0_API}/submissions?wait=true`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        language: languageConfig.language,
-        version: languageConfig.version,
-        files: [
-          {
-            name: `main.${getFileExtension(language)}`,
-            content: code,
-          },
-        ],
+        language_id: languageId,
+        source_code: code,
       }),
     });
 
@@ -50,20 +49,28 @@ export async function executeCode(language, code) {
 
     const data = await response.json();
 
-    const output = data.run.output || "";
-    const stderr = data.run.stderr || "";
-
-    if (stderr) {
+    // Judge0 CE response handling
+    if (data.status.id === 6) {
+      // Compilation Error
       return {
         success: false,
-        output: output,
-        error: stderr,
+        output: "",
+        error: data.compile_output || "Compilation Error",
+      };
+    }
+
+    if (data.status.id !== 3) {
+      // Any other error (Runtime Error, Time Limit Exceeded, etc.)
+      return {
+        success: false,
+        output: data.stdout || "",
+        error: data.stderr || data.message || "Execution Error",
       };
     }
 
     return {
       success: true,
-      output: output || "No output",
+      output: data.stdout || "No output",
     };
   } catch (error) {
     return {
@@ -73,12 +80,3 @@ export async function executeCode(language, code) {
   }
 }
 
-function getFileExtension(language) {
-  const extensions = {
-    javascript: "js",
-    python: "py",
-    java: "java",
-  };
-
-  return extensions[language] || "txt";
-}
